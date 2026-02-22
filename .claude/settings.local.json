@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(NODE_ENV=development npx next build:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill -9:*)",
+      "Bash(source:*)",
+      "Bash(nvm use:*)",
+      "Bash(npx next build)"
+    ]
+  }
+}
