@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Toast, ToastType } from "@/types";
+import type { Toast, ToastType, UgcVideo } from "@/types";
 
 export interface PreviewFile {
   public_id: string;
@@ -33,6 +33,17 @@ interface UIStore {
   previewFile: PreviewFile | null;
   openPreview: (file: PreviewFile) => void;
   closePreview: () => void;
+
+  // UGC Upload modal
+  isUgcUploadModalOpen: boolean;
+  openUgcUploadModal: () => void;
+  closeUgcUploadModal: () => void;
+
+  // UGC Preview modal
+  isUgcPreviewOpen: boolean;
+  ugcPreviewVideo: UgcVideo | null;
+  openUgcPreview: (video: UgcVideo) => void;
+  closeUgcPreview: () => void;
 
   // Toast notifications
   toasts: Toast[];
@@ -84,6 +95,19 @@ export const useUIStore = create<UIStore>((set, get) => ({
       previewType: null,
       previewFile: null,
     }),
+
+  // UGC Upload modal
+  isUgcUploadModalOpen: false,
+  openUgcUploadModal: () => set({ isUgcUploadModalOpen: true }),
+  closeUgcUploadModal: () => set({ isUgcUploadModalOpen: false }),
+
+  // UGC Preview modal
+  isUgcPreviewOpen: false,
+  ugcPreviewVideo: null,
+  openUgcPreview: (video) =>
+    set({ isUgcPreviewOpen: true, ugcPreviewVideo: video }),
+  closeUgcPreview: () =>
+    set({ isUgcPreviewOpen: false, ugcPreviewVideo: null }),
 
   // Toast notifications
   toasts: [],

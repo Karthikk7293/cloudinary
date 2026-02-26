@@ -6,7 +6,10 @@ type Action =
   | "createFolder"
   | "manageAdmins"
   | "viewMedia"
-  | "viewAdmins";
+  | "viewAdmins"
+  | "ugcUpload"
+  | "ugcDelete"
+  | "ugcUpdate";
 
 const ROLE_HIERARCHY: Record<UserRole, number> = {
   SUPER_ADMIN: 3,
@@ -33,6 +36,12 @@ export function hasPermission(user: AppUser, action: Action): boolean {
       return true;
     case "viewAdmins":
       return user.role === "SUPER_ADMIN";
+    case "ugcUpload":
+      return user.access.canUpload;
+    case "ugcDelete":
+      return user.access.canDelete;
+    case "ugcUpdate":
+      return user.role === "ADMIN" || user.role === "SUPER_ADMIN";
     default:
       return false;
   }

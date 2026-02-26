@@ -64,3 +64,57 @@ export function validateFile(
 
   return { valid: true, resourceType };
 }
+
+// ─── UGC Validation ──────────────────────────────────────────────
+
+const MAX_UGC_VIDEO_BYTES = 50 * 1024 * 1024; // 50MB
+const MAX_TITLE_LENGTH = 100;
+const MAX_DESCRIPTION_LENGTH = 500;
+
+export const VALID_UGC_STATUSES = ["pending", "approved", "rejected"] as const;
+
+export function validateUgcVideo(
+  fileName: string,
+  mimeType: string,
+  sizeBytes: number
+): { valid: boolean; error?: string } {
+  if (!mimeType.startsWith("video/")) {
+    return { valid: false, error: "Only video files are allowed" };
+  }
+  const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+  if (ext !== "mp4") {
+    return { valid: false, error: "Only MP4 format is allowed" };
+  }
+  if (sizeBytes > MAX_UGC_VIDEO_BYTES) {
+    return { valid: false, error: "Video must be under 50MB" };
+  }
+  return { valid: true };
+}
+
+export function sanitizeUgcFields(data: {
+  title?: string;
+  description?: string;
+  propertyId?: string;
+  isFeatured?: boolean;
+}): {
+  title: string;
+  description: string;
+  propertyId: string;
+  isFeatured: boolean;
+  errors: string[];
+} {
+  const errors: string[] = [];
+  const title = (data.title ?? "").trim();
+  const description = (data.description ?? "").trim();
+  const propertyId = (data.propertyId ?? "").trim();
+  const isFeatured = data.isFeatured === true;
+
+  if (!title) errors.push("Title is required");
+  if (title.length > MAX_TITLE_LENGTH)
+    errors.push(`Title must be under ${MAX_TITLE_LENGTH} characters`);
+  if (description.length > MAX_DESCRIPTION_LENGTH)
+    errors.push(`Description must be under ${MAX_DESCRIPTION_LENGTH} characters`);
+  if (!propertyId) errors.push("Property is required");
+
+  return { title, description, propertyId, isFeatured, errors };
+}

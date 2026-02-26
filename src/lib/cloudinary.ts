@@ -182,4 +182,52 @@ export async function createCloudinaryFolder(
   return { success: true };
 }
 
+// ─── UGC Video Upload (with HLS eager transform) ───────────────
+
+export async function uploadUgcVideo(
+  fileBuffer: Buffer,
+  folder: string
+): Promise<{
+  public_id: string;
+  secure_url: string;
+  format: string;
+  bytes: number;
+  duration: number;
+}> {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        resource_type: "video",
+        eager: [{ streaming_profile: "hd", format: "m3u8" }],
+        eager_async: true,
+      },
+      (error, result) => {
+        if (error || !result) {
+          reject(error ?? new Error("UGC upload returned no result"));
+          return;
+        }
+        resolve({
+          public_id: result.public_id,
+          secure_url: result.secure_url,
+          format: result.format,
+          bytes: result.bytes,
+          duration: result.duration ?? 0,
+        });
+      }
+    );
+    stream.end(fileBuffer);
+  });
+}
+
+export function buildHlsUrl(publicId: string): string {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  return `https://res.cloudinary.com/${cloudName}/video/upload/sp_hd/${publicId}.m3u8`;
+}
+
+export function buildThumbnailUrl(publicId: string): string {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  return `https://res.cloudinary.com/${cloudName}/video/upload/so_0,w_400,h_711,c_fill/${publicId}.jpg`;
+}
+
 export default cloudinary;

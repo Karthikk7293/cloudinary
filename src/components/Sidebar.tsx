@@ -8,6 +8,7 @@ import ThemeToggle from "./ThemeToggle";
 
 const NAV_ITEMS = [
   { label: "Media", href: "/media" },
+  { label: "UGC", href: "/ugc" },
   { label: "Dashboard", href: "/dashboard", minRole: "ADMIN" as const },
   { label: "Admins", href: "/admins", minRole: "SUPER_ADMIN" as const },
 ];

@@ -44,7 +44,10 @@ export type ActivityAction =
   | "UPLOAD"
   | "DELETE"
   | "CREATE_FOLDER"
-  | "ACCESS_UPDATE";
+  | "ACCESS_UPDATE"
+  | "UGC_UPLOAD"
+  | "UGC_DELETE"
+  | "UGC_UPDATE";
 
 export interface ActivityLog {
   action: ActivityAction;
@@ -76,6 +79,34 @@ export interface Toast {
 export interface CloudinaryFolder {
   name: string;
   path: string;
+}
+
+// ─── UGC ────────────────────────────────────────────────────────
+
+export type UgcStatus = "pending" | "approved" | "rejected";
+
+export interface UgcVideo {
+  videoId: string;
+  propertyId: string;
+  uploaderId: string;
+  title: string;
+  description: string;
+  cloudinaryPublicId: string;
+  thumbnailUrl: string;
+  previewUrl: string;
+  hlsUrl: string;
+  duration: number;
+  aspectRatio: string;
+  likes: number;
+  views: number;
+  status: UgcStatus;
+  createdAt: number;
+  isFeatured: boolean;
+}
+
+export interface Property {
+  id: string;
+  name: string;
 }
 
 // ─── Dashboard Metrics ──────────────────────────────────────────
