@@ -235,7 +235,7 @@ export default function UgcPage() {
 
                 {/* Action dropdown */}
                 <div
-                  className="absolute bottom-1 left-1 opacity-0 transition-opacity group-hover:opacity-100"
+                  className="absolute right-1 top-1 opacity-0 transition-opacity group-hover:opacity-100"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="rounded-full bg-white/90 shadow-sm dark:bg-dark-card/90">
