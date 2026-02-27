@@ -8,6 +8,16 @@ import type { DashboardMetrics } from "@/types";
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
+function formatDuration(totalSeconds: number): string {
+  if (totalSeconds === 0) return "0s";
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.round(totalSeconds % 60);
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
 function formatStorage(bytes: number): string {
   if (bytes === 0) return "0 B";
   if (bytes < 1024) return `${bytes} B`;
@@ -211,6 +221,57 @@ function HorizontalBar({
   );
 }
 
+// ─── UGC Bar Chart (3-series) ────────────────────────────────────
+
+function UgcBarChart({
+  data,
+}: {
+  data: { label: string; uploads: number; updates: number; deletes: number }[];
+}) {
+  const maxVal = Math.max(
+    ...data.map((d) => Math.max(d.uploads, d.updates, d.deletes)),
+    1
+  );
+
+  return (
+    <div className="flex items-end gap-2" style={{ height: 120 }}>
+      {data.map((d) => (
+        <div key={d.label} className="flex flex-1 flex-col items-center gap-1">
+          <div className="flex w-full items-end justify-center gap-0.5" style={{ height: 100 }}>
+            <div
+              className="w-2.5 rounded-t bg-primary transition-all duration-700 ease-out"
+              style={{
+                height: `${(d.uploads / maxVal) * 100}%`,
+                minHeight: d.uploads > 0 ? 4 : 0,
+              }}
+              title={`${d.uploads} uploads`}
+            />
+            <div
+              className="w-2.5 rounded-t bg-warning transition-all duration-700 ease-out"
+              style={{
+                height: `${(d.updates / maxVal) * 100}%`,
+                minHeight: d.updates > 0 ? 4 : 0,
+              }}
+              title={`${d.updates} updates`}
+            />
+            <div
+              className="w-2.5 rounded-t bg-danger transition-all duration-700 ease-out"
+              style={{
+                height: `${(d.deletes / maxVal) * 100}%`,
+                minHeight: d.deletes > 0 ? 4 : 0,
+              }}
+              title={`${d.deletes} deletes`}
+            />
+          </div>
+          <span className="text-[10px] text-gray-400">
+            {d.label}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Dashboard Page ──────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -290,6 +351,36 @@ export default function DashboardPage() {
     ];
   }, [metrics]);
 
+  const ugcCards = useMemo(() => {
+    if (!metrics) return [];
+    return [
+      {
+        label: "Total UGC Videos",
+        value: metrics.ugc.totalVideos,
+        icon: "M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z",
+        bg: "from-primary/10 to-soft-purple/10",
+        iconColor: "text-primary",
+        border: "border-primary/20",
+      },
+      {
+        label: "Pending Review",
+        value: metrics.ugc.pendingCount,
+        icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
+        bg: "from-warning/10 to-amber-100/50 dark:to-amber-900/10",
+        iconColor: "text-warning",
+        border: "border-warning/20",
+      },
+      {
+        label: "Featured UGC",
+        value: metrics.ugc.featuredCount,
+        icon: "M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z",
+        bg: "from-soft-purple/10 to-violet-100/50 dark:to-violet-900/10",
+        iconColor: "text-soft-purple",
+        border: "border-soft-purple/20",
+      },
+    ];
+  }, [metrics]);
+
   if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
     return (
       <p className="text-sm text-gray-500">
@@ -315,13 +406,37 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <div
               key={i}
               className="h-56 animate-pulse rounded-xl border border-border-light bg-card-light dark:border-border-dark dark:bg-dark-card"
             />
           ))}
+        </div>
+        {/* UGC skeleton */}
+        <div className="border-t border-border-light pt-6 dark:border-border-dark">
+          <div className="h-5 w-28 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={`ugc-skel-card-${i}`}
+                className="space-y-3 rounded-xl border border-border-light bg-card-light p-4 dark:border-border-dark dark:bg-dark-card"
+              >
+                <div className="h-8 w-8 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700" />
+                <div className="h-3 w-16 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+                <div className="h-7 w-12 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={`ugc-skel-chart-${i}`}
+                className="h-56 animate-pulse rounded-xl border border-border-light bg-card-light dark:border-border-dark dark:bg-dark-card"
+              />
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -368,6 +483,41 @@ export default function DashboardPage() {
     metrics.storageByType.images +
     metrics.storageByType.videos +
     metrics.storageByType.documents;
+
+  // UGC chart data
+  const ugcStatusSegments = [
+    { value: metrics.ugc.pendingCount, color: "#F59E0B", label: "Pending" },
+    { value: metrics.ugc.approvedCount, color: "#22C55E", label: "Approved" },
+    { value: metrics.ugc.rejectedCount, color: "#EF4444", label: "Rejected" },
+  ];
+
+  const ugcBarData = (metrics.ugc.recentActivity ?? []).map((a) => ({
+    label: new Date(a.date).toLocaleDateString("en-US", { weekday: "short" }),
+    uploads: a.uploads,
+    updates: a.updates,
+    deletes: a.deletes,
+  }));
+
+  const ugcEngagementItems = [
+    {
+      label: "Total Duration",
+      value: metrics.ugc.totalDurationSeconds,
+      color: "#6C63FF",
+      display: formatDuration(metrics.ugc.totalDurationSeconds),
+    },
+    {
+      label: "Total Views",
+      value: metrics.ugc.totalViews,
+      color: "#8E86FF",
+      display: metrics.ugc.totalViews.toLocaleString(),
+    },
+    {
+      label: "Total Likes",
+      value: metrics.ugc.totalLikes,
+      color: "#22C55E",
+      display: metrics.ugc.totalLikes.toLocaleString(),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -463,6 +613,105 @@ export default function DashboardPage() {
             <div className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-danger" />
               <span className="text-[10px] text-gray-500">Deletes</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── UGC Analytics Section ─────────────────────────────── */}
+      <div className="border-t border-border-light pt-6 dark:border-border-dark">
+        <h2 className="mb-4 text-base font-semibold text-gray-900 dark:text-gray-100">
+          UGC Analytics
+        </h2>
+
+        {/* UGC Metric tiles */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {ugcCards.map((card, i) => (
+            <div
+              key={card.label}
+              className={`rounded-xl border bg-gradient-to-br ${card.bg} ${card.border} p-4 transition-all duration-300 hover:scale-[1.02] hover:shadow-md`}
+              style={{ animationDelay: `${(i + 6) * 80}ms` }}
+            >
+              <div
+                className={`mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-white/80 dark:bg-dark-card/80 ${card.iconColor}`}
+              >
+                <svg
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d={card.icon} />
+                </svg>
+              </div>
+              <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                {card.label}
+              </p>
+              <p className="mt-0.5 text-2xl font-bold text-gray-900 dark:text-gray-100">
+                <AnimatedNumber value={card.value} />
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {/* UGC Charts row */}
+        <div className="mt-4 grid gap-4 lg:grid-cols-3">
+          {/* UGC Status Distribution — Donut */}
+          <div className="rounded-xl border border-border-light bg-card-light p-5 dark:border-border-dark dark:bg-dark-card">
+            <h2 className="mb-4 text-sm font-semibold text-gray-800 dark:text-gray-200">
+              UGC Status Distribution
+            </h2>
+            <div className="flex items-center justify-center gap-6">
+              <DonutChart segments={ugcStatusSegments} />
+              <div className="space-y-2">
+                {ugcStatusSegments.map((seg) => (
+                  <div key={seg.label} className="flex items-center gap-2">
+                    <span
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: seg.color }}
+                    />
+                    <span className="text-xs text-gray-600 dark:text-gray-400">
+                      {seg.label}
+                    </span>
+                    <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+                      {seg.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* UGC Engagement — Horizontal Bars */}
+          <div className="rounded-xl border border-border-light bg-card-light p-5 dark:border-border-dark dark:bg-dark-card">
+            <h2 className="mb-4 text-sm font-semibold text-gray-800 dark:text-gray-200">
+              UGC Engagement
+            </h2>
+            <HorizontalBar items={ugcEngagementItems} />
+          </div>
+
+          {/* UGC Activity Chart — Bar */}
+          <div className="rounded-xl border border-border-light bg-card-light p-5 dark:border-border-dark dark:bg-dark-card">
+            <h2 className="mb-4 text-sm font-semibold text-gray-800 dark:text-gray-200">
+              UGC Activity (Last 7 Days)
+            </h2>
+            <UgcBarChart data={ugcBarData} />
+            <div className="mt-3 flex items-center justify-center gap-4">
+              <div className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-primary" />
+                <span className="text-[10px] text-gray-500">Uploads</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-warning" />
+                <span className="text-[10px] text-gray-500">Updates</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-danger" />
+                <span className="text-[10px] text-gray-500">Deletes</span>
+              </div>
             </div>
           </div>
         </div>

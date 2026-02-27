@@ -27,6 +27,7 @@ export async function GET() {
       folders,
       recentLogsSnap,
       usersSnap,
+      ugcSnap,
     ] = await Promise.all([
       listCloudinaryResources("", "image"),
       listCloudinaryResources("", "video"),
@@ -37,6 +38,7 @@ export async function GET() {
         .where("timestamp", ">=", thirtyDaysAgo)
         .get(),
       adminDb.collection("cloudinary_admins").count().get(),
+      adminDb.collection("ugc_videos").get(),
     ]);
 
     const adminsSnap = await adminDb
@@ -49,12 +51,14 @@ export async function GET() {
     let uploads30d = 0;
     let deletes30d = 0;
     const dailyMap: Record<string, { uploads: number; deletes: number }> = {};
+    const ugcDailyMap: Record<string, { uploads: number; updates: number; deletes: number }> = {};
 
     // Pre-fill last 7 days
     for (let i = 6; i >= 0; i--) {
       const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
       const key = d.toISOString().split("T")[0];
       dailyMap[key] = { uploads: 0, deletes: 0 };
+      ugcDailyMap[key] = { uploads: 0, updates: 0, deletes: 0 };
     }
 
     recentLogsSnap.forEach((doc) => {
@@ -68,12 +72,44 @@ export async function GET() {
         if (action === "UPLOAD") dailyMap[dateKey].uploads++;
         else if (action === "DELETE") dailyMap[dateKey].deletes++;
       }
+      if (ugcDailyMap[dateKey]) {
+        if (action === "UGC_UPLOAD") ugcDailyMap[dateKey].uploads++;
+        else if (action === "UGC_UPDATE") ugcDailyMap[dateKey].updates++;
+        else if (action === "UGC_DELETE") ugcDailyMap[dateKey].deletes++;
+      }
     });
 
     const recentActivity = Object.entries(dailyMap).map(([date, counts]) => ({
       date,
       ...counts,
     }));
+
+    const ugcRecentActivity = Object.entries(ugcDailyMap).map(([date, counts]) => ({
+      date,
+      ...counts,
+    }));
+
+    // UGC aggregation
+    let ugcTotal = 0;
+    let ugcPending = 0;
+    let ugcApproved = 0;
+    let ugcRejected = 0;
+    let ugcFeatured = 0;
+    let ugcTotalDuration = 0;
+    let ugcTotalViews = 0;
+    let ugcTotalLikes = 0;
+
+    ugcSnap.forEach((doc) => {
+      const data = doc.data();
+      ugcTotal++;
+      if (data.status === "pending") ugcPending++;
+      else if (data.status === "approved") ugcApproved++;
+      else if (data.status === "rejected") ugcRejected++;
+      if (data.isFeatured) ugcFeatured++;
+      ugcTotalDuration += data.duration ?? 0;
+      ugcTotalViews += data.views ?? 0;
+      ugcTotalLikes += data.likes ?? 0;
+    });
 
     // Storage by type (sum of bytes)
     const imgStorage = cloudinaryImages.resources.reduce(
@@ -110,6 +146,17 @@ export async function GET() {
         documents: rawStorage,
       },
       recentActivity,
+      ugc: {
+        totalVideos: ugcTotal,
+        pendingCount: ugcPending,
+        approvedCount: ugcApproved,
+        rejectedCount: ugcRejected,
+        featuredCount: ugcFeatured,
+        totalDurationSeconds: ugcTotalDuration,
+        totalViews: ugcTotalViews,
+        totalLikes: ugcTotalLikes,
+        recentActivity: ugcRecentActivity,
+      },
     };
 
     return successResponse(metrics);
