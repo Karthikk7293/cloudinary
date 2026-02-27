@@ -8,11 +8,52 @@ import type { Property } from "@/types";
 
 const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
 const MAX_DURATION_SECONDS = 60;
+const CHUNK_SIZE = 20 * 1024 * 1024; // 20 MB per chunk
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function generateUploadId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function uploadChunk(
+  url: string,
+  chunk: Blob,
+  start: number,
+  end: number,
+  total: number,
+  uploadId: string,
+  params: Record<string, string>
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append("file", chunk);
+    for (const [key, value] of Object.entries(params)) {
+      formData.append(key, value);
+    }
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.setRequestHeader(
+      "Content-Range",
+      `bytes ${start}-${end - 1}/${total}`
+    );
+    xhr.setRequestHeader("X-Unique-Upload-Id", uploadId);
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(xhr.responseText);
+      } else {
+        reject(new Error(`Chunk upload failed (${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error during upload"));
+    xhr.send(formData);
+  });
 }
 
 export default function UgcUploadModal() {
@@ -113,45 +154,46 @@ export default function UgcUploadModal() {
 
       const signData = signRes.data!;
 
-      // Step 2: Upload directly to Cloudinary (bypasses Next.js body limit)
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("api_key", signData.api_key);
-      formData.append("timestamp", String(signData.timestamp));
-      formData.append("signature", signData.signature);
-      formData.append("folder", signData.folder);
-      formData.append("resource_type", "video");
-      formData.append("eager", signData.eager);
-      formData.append("eager_async", signData.eager_async);
+      // Step 2: Upload directly to Cloudinary via chunked upload
+      const uploadUrl = `https://api.cloudinary.com/v1_1/${signData.cloud_name}/video/upload`;
+      const uploadId = generateUploadId();
+      const params: Record<string, string> = {
+        api_key: signData.api_key,
+        timestamp: String(signData.timestamp),
+        signature: signData.signature,
+        folder: signData.folder,
+        resource_type: "video",
+        eager: signData.eager,
+        eager_async: signData.eager_async,
+      };
 
-      const cloudinaryResult = await new Promise<{
+      const totalSize = file.size;
+      const totalChunks = Math.ceil(totalSize / CHUNK_SIZE);
+      let lastResponse = "";
+
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, totalSize);
+        const chunk = file.slice(start, end);
+
+        lastResponse = await uploadChunk(
+          uploadUrl,
+          chunk,
+          start,
+          end,
+          totalSize,
+          uploadId,
+          params
+        );
+
+        setUploadProgress(Math.round(((i + 1) / totalChunks) * 100));
+      }
+
+      const cloudinaryResult = JSON.parse(lastResponse) as {
         public_id: string;
         secure_url: string;
         duration: number;
-      }>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open(
-          "POST",
-          `https://api.cloudinary.com/v1_1/${signData.cloud_name}/video/upload`
-        );
-
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            setUploadProgress(Math.round((e.loaded / e.total) * 100));
-          }
-        };
-
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve(JSON.parse(xhr.responseText));
-          } else {
-            reject(new Error("Cloudinary upload failed"));
-          }
-        };
-
-        xhr.onerror = () => reject(new Error("Network error during upload"));
-        xhr.send(formData);
-      });
+      };
 
       // Step 3: Confirm upload and save metadata on our server
       await apiFetch("/api/ugc/confirm", {
