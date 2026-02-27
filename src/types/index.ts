@@ -121,4 +121,20 @@ export interface DashboardMetrics {
   filesByType: { images: number; videos: number; documents: number };
   storageByType: { images: number; videos: number; documents: number };
   recentActivity: { date: string; uploads: number; deletes: number }[];
+  ugc: {
+    totalVideos: number;
+    pendingCount: number;
+    approvedCount: number;
+    rejectedCount: number;
+    featuredCount: number;
+    totalDurationSeconds: number;
+    totalViews: number;
+    totalLikes: number;
+    recentActivity: {
+      date: string;
+      uploads: number;
+      updates: number;
+      deletes: number;
+    }[];
+  };
 }
