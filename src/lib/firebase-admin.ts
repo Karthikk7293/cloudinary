@@ -22,7 +22,8 @@ export const adminAuth: Auth = new Proxy({} as Auth, {
   get(_, prop) {
     ensureInitialized();
     const auth = getAuth();
-    return Reflect.get(auth, prop, auth);
+    const value = Reflect.get(auth, prop, auth);
+    return typeof value === "function" ? value.bind(auth) : value;
   },
 });
 
@@ -30,6 +31,7 @@ export const adminDb: Firestore = new Proxy({} as Firestore, {
   get(_, prop) {
     ensureInitialized();
     const db = getFirestore();
-    return Reflect.get(db, prop, db);
+    const value = Reflect.get(db, prop, db);
+    return typeof value === "function" ? value.bind(db) : value;
   },
 });
