@@ -67,7 +67,7 @@ export function validateFile(
 
 // ─── UGC Validation ──────────────────────────────────────────────
 
-const MAX_UGC_VIDEO_BYTES = 50 * 1024 * 1024; // 50MB
+const MAX_UGC_VIDEO_BYTES = 500 * 1024 * 1024; // 500MB
 const MAX_TITLE_LENGTH = 100;
 const MAX_DESCRIPTION_LENGTH = 500;
 
@@ -86,7 +86,7 @@ export function validateUgcVideo(
     return { valid: false, error: "Only MP4 format is allowed" };
   }
   if (sizeBytes > MAX_UGC_VIDEO_BYTES) {
-    return { valid: false, error: "Video must be under 50MB" };
+    return { valid: false, error: "Video must be under 500MB" };
   }
   return { valid: true };
 }

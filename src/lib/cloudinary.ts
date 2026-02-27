@@ -230,4 +230,40 @@ export function buildThumbnailUrl(publicId: string): string {
   return `https://res.cloudinary.com/${cloudName}/video/upload/so_0,w_400,h_711,c_fill/${publicId}.jpg`;
 }
 
+// ─── UGC Signed Upload (direct-to-Cloudinary from browser) ──────
+
+export function generateUgcUploadSignature(folder: string): {
+  signature: string;
+  timestamp: number;
+  folder: string;
+  eager: string;
+  eager_async: string;
+  api_key: string;
+  cloud_name: string;
+} {
+  const timestamp = Math.round(Date.now() / 1000);
+
+  const paramsToSign: Record<string, string | number> = {
+    folder,
+    eager: "sp_hd/m3u8",
+    eager_async: "true",
+    timestamp,
+  };
+
+  const signature = cloudinary.utils.api_sign_request(
+    paramsToSign,
+    process.env.CLOUDINARY_API_SECRET!
+  );
+
+  return {
+    signature,
+    timestamp,
+    folder,
+    eager: "sp_hd/m3u8",
+    eager_async: "true",
+    api_key: process.env.CLOUDINARY_API_KEY!,
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
+  };
+}
+
 export default cloudinary;

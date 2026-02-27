@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/api-client";
 import Modal from "./Modal";
 import type { Property } from "@/types";
 
-const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
 const MAX_DURATION_SECONDS = 60;
 
 function formatSize(bytes: number): string {
@@ -32,6 +32,7 @@ export default function UgcUploadModal() {
 
   // UI state
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [confirmed, setConfirmed] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -51,7 +52,7 @@ export default function UgcUploadModal() {
       return;
     }
     if (f.size > MAX_VIDEO_BYTES) {
-      addToast("error", "Video must be under 50 MB");
+      addToast("error", "Video must be under 500 MB");
       return;
     }
 
@@ -87,17 +88,84 @@ export default function UgcUploadModal() {
     if (!file || durationError) return;
 
     setUploading(true);
+    setUploadProgress(0);
+
     try {
+      // Step 1: Get Cloudinary signature from our server
+      const signRes = await apiFetch<{
+        signature: string;
+        timestamp: number;
+        folder: string;
+        eager: string;
+        eager_async: string;
+        api_key: string;
+        cloud_name: string;
+      }>("/api/ugc/sign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim(),
+          propertyId,
+          isFeatured,
+        }),
+      });
+
+      const signData = signRes.data!;
+
+      // Step 2: Upload directly to Cloudinary (bypasses Next.js body limit)
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("title", title.trim());
-      formData.append("description", description.trim());
-      formData.append("propertyId", propertyId);
-      formData.append("isFeatured", String(isFeatured));
+      formData.append("api_key", signData.api_key);
+      formData.append("timestamp", String(signData.timestamp));
+      formData.append("signature", signData.signature);
+      formData.append("folder", signData.folder);
+      formData.append("resource_type", "video");
+      formData.append("eager", signData.eager);
+      formData.append("eager_async", signData.eager_async);
 
-      await apiFetch("/api/ugc/upload", {
+      const cloudinaryResult = await new Promise<{
+        public_id: string;
+        secure_url: string;
+        duration: number;
+      }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open(
+          "POST",
+          `https://api.cloudinary.com/v1_1/${signData.cloud_name}/video/upload`
+        );
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            setUploadProgress(Math.round((e.loaded / e.total) * 100));
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(JSON.parse(xhr.responseText));
+          } else {
+            reject(new Error("Cloudinary upload failed"));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error("Network error during upload"));
+        xhr.send(formData);
+      });
+
+      // Step 3: Confirm upload and save metadata on our server
+      await apiFetch("/api/ugc/confirm", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          public_id: cloudinaryResult.public_id,
+          secure_url: cloudinaryResult.secure_url,
+          duration: cloudinaryResult.duration,
+          title: title.trim(),
+          description: description.trim(),
+          propertyId,
+          isFeatured,
+        }),
       });
 
       addToast("success", "UGC video uploaded successfully");
@@ -109,6 +177,7 @@ export default function UgcUploadModal() {
       );
     } finally {
       setUploading(false);
+      setUploadProgress(0);
     }
   }
 
@@ -122,6 +191,7 @@ export default function UgcUploadModal() {
     setDurationError(null);
     setConfirmed(false);
     setUploading(false);
+    setUploadProgress(0);
     setDragOver(false);
     closeUgcUploadModal();
   }
@@ -185,7 +255,7 @@ export default function UgcUploadModal() {
               Drop an MP4 video here or click to select
             </p>
             <p className="mt-1 text-xs text-gray-300 dark:text-gray-600">
-              MP4 only &middot; Max 50 MB &middot; Max 60 seconds
+              MP4 only &middot; Max 500 MB &middot; Max 60 seconds
             </p>
           </div>
         )}
@@ -348,13 +418,27 @@ export default function UgcUploadModal() {
 
         {/* Upload */}
         {file && confirmed && (
-          <button
-            onClick={handleUpload}
-            disabled={uploading}
-            className="w-full rounded bg-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {uploading ? "Uploading..." : "Upload Now"}
-          </button>
+          <>
+            <button
+              onClick={handleUpload}
+              disabled={uploading}
+              className="w-full rounded bg-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {uploading
+                ? uploadProgress > 0
+                  ? `Uploading... ${uploadProgress}%`
+                  : "Preparing..."
+                : "Upload Now"}
+            </button>
+            {uploading && uploadProgress > 0 && (
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
     </Modal>
