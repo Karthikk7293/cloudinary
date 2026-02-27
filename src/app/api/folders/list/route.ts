@@ -11,7 +11,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const prefix = searchParams.get("prefix") ?? undefined;
 
-    const folders = await listCloudinaryFolders(prefix);
+    const HIDDEN_FOLDERS = ["ugc_videos", "_trash"];
+
+    const allFolders = await listCloudinaryFolders(prefix);
+    const folders = prefix
+      ? allFolders
+      : allFolders.filter((f) => !HIDDEN_FOLDERS.includes(f.name));
 
     return successResponse({ folders });
   } catch (error) {
