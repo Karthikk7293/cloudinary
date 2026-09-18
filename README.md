@@ -13,7 +13,7 @@ Internal media governance system built with Next.js 14+, Firebase, Cloudinary, a
 ### 1. Install dependencies
 
 ```bash
-cd cloudinary-media-admin
+cd cloudinary
 npm install
 ```
 
